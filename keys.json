@@ -1,5 +1,6 @@
 {
   "global": {
+    "cmd-shift-p": "mod.open:account-command-palette",
     "cmd-shift-u": "mod.open:account-usage"
   }
 }

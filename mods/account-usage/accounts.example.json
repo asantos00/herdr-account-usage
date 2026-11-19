@@ -1,0 +1,25 @@
+{
+  "accounts": [
+    {
+      "kind": "claude",
+      "label": "Claude personal",
+      "email": "personal@example.com",
+      "configDir": "~/.claude-personal"
+    },
+    {
+      "kind": "claude",
+      "label": "Claude work",
+      "configDir": "~/.claude-work"
+    },
+    {
+      "kind": "codex",
+      "label": "Codex personal",
+      "configDir": "~/.codex-personal"
+    },
+    {
+      "kind": "codex",
+      "label": "Codex work",
+      "configDir": "~/.codex-work"
+    }
+  ]
+}

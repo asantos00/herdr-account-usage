@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clampPercent, classifyWindows, discoverAccounts, epochMs, mergeWithCache } from "./usage-helper.mjs";
+import { clampPercent, classifyWindows, epochMs, mergeWithCache } from "./usage-helper.mjs";
 
 test("clamps percentages", () => {
   assert.equal(clampPercent(-2), 0);
@@ -18,13 +18,6 @@ test("keeps session and weekly windows distinct", () => {
   const weekly = { usedPercent: 20, windowMinutes: 10080 };
   assert.deepEqual(classifyWindows([weekly, session]), { session, weekly });
   assert.deepEqual(classifyWindows([weekly]), { session: null, weekly });
-});
-
-test("discovers only current Codex and Claude CLI accounts", () => {
-  assert.deepEqual(discoverAccounts().map(({ kind, label }) => ({ kind, label })), [
-    { kind: "codex", label: "Codex" },
-    { kind: "claude", label: "Claude" },
-  ]);
 });
 
 test("keeps the last successful usage when a provider check fails", () => {
@@ -45,7 +38,31 @@ test("cache excludes credential locations and transient errors", () => {
     session: null, weekly: { usedPercent: 17 },
   }], { results: [] }, 300);
   assert.deepEqual(merged.cache.results[0], {
-    kind: "codex", label: "Codex", plan: "pro", session: null,
-    weekly: { usedPercent: 17 }, checkedAt: 300,
+    kind: "codex", label: "Codex", email: null, name: null, organization: null,
+    plan: "pro", session: null, weekly: { usedPercent: 17 }, checkedAt: 300,
   });
+});
+
+test("cache keeps same-provider profiles separate by stable id", () => {
+  const previous = {
+    results: [
+      { id: "codex-one", kind: "codex", label: "Codex", plan: "pro", session: null, weekly: { usedPercent: 10 }, checkedAt: 100 },
+      { id: "codex-two", kind: "codex", label: "Codex", plan: "team", session: null, weekly: { usedPercent: 60 }, checkedAt: 100 },
+    ],
+  };
+  const merged = mergeWithCache([
+    { id: "codex-one", kind: "codex", label: "Codex", error: "offline" },
+    { id: "codex-two", kind: "codex", label: "Codex", error: "offline" },
+  ], previous, 200);
+  assert.deepEqual(merged.results.map((account) => account.weekly.usedPercent), [10, 60]);
+});
+
+test("a failed usage refresh still keeps the current Claude billing mode", () => {
+  const previous = {
+    results: [{ id: "claude-one", kind: "claude", label: "Claude", authMode: "api", plan: null, session: null, weekly: { usedPercent: 30 }, checkedAt: 100 }],
+  };
+  const merged = mergeWithCache([
+    { id: "claude-one", kind: "claude", label: "Claude", authMode: "subscription", error: "offline" },
+  ], previous, 200);
+  assert.equal(merged.results[0].authMode, "subscription");
 });
