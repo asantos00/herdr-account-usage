@@ -1,7 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { appHome, closeOverlay, exec, home, props, readTextFile, setShared, shared, theme, writeTextFile } from "herdr";
-import { SETTINGS_RELATIVE_PATH, inspectAuthMode, serializeSettings, subscriptionCapacityAvailable, switchAuthMode } from "./claude-auth.mjs";
+import { appHome, checking, closeOverlay, exec, props, setShared, shared, theme } from "herdr";
+import { subscriptionCapacityAvailable } from "./claude-auth.mjs";
 
 const SEGMENTS = 16;
 
@@ -44,14 +44,13 @@ export default class AccountUsage extends View {
     this.loading = false;
     this.error = null;
     this.updatedAt = cached?.updatedAt || null;
-    this.authPath = `${home()}/${SETTINGS_RELATIVE_PATH}`;
-    this.authMode = shared("claude-auth.mode") || "invalid";
-    this.authLoading = false;
-    this.authMessage = null;
-    this.authError = null;
+    this.authLoading = new Set();
+    this.authMessages = {};
+    this.authErrors = {};
+    this.expanded = new Set();
     this.handle = cx.focus_handle();
-    if (!this.updatedAt || Date.now() - this.updatedAt >= 300000) this.refresh(cx);
-    this.refreshAuth(cx);
+    if (checking()) return;
+    this.refresh(cx);
     cx.timer.every(300000, (cx) => this.refresh(cx));
   }
 
@@ -77,82 +76,58 @@ export default class AccountUsage extends View {
     });
   }
 
-  refreshAuth(cx) {
-    if (this.authLoading) return;
-    this.authLoading = true;
-    this.authError = null;
-    cx.spawn(async (cx) => {
-      try {
-        const text = await readTextFile(this.authPath);
-        if (text == null) throw new Error("missing");
-        this.authMode = inspectAuthMode(JSON.parse(text)).mode;
-        setShared("claude-auth.mode", this.authMode);
-      } catch (_error) {
-        this.authMode = "invalid";
-        this.authError = "Could not read Claude settings.";
-      } finally {
-        this.authLoading = false;
-        cx.notify();
-      }
-    });
-  }
-
-  switchAuth(targetMode, cx) {
-    if (this.authLoading || !["subscription", "api"].includes(this.authMode) || this.authMode === targetMode) return;
-    this.authLoading = true;
-    this.authMessage = null;
-    this.authError = null;
+  switchAuth(account, targetMode, cx) {
+    if (this.authLoading.has(account.id) || !["subscription", "api"].includes(account.authMode) || account.authMode === targetMode) return;
+    this.authLoading.add(account.id);
+    delete this.authMessages[account.id];
+    delete this.authErrors[account.id];
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        const original = await readTextFile(this.authPath);
-        if (original == null) throw new Error("missing");
-        const result = switchAuthMode(JSON.parse(original), targetMode);
-        if (result.changed) await writeTextFile(this.authPath, serializeSettings(result.settings, original), original);
-        this.authMode = result.inspection.mode;
-        setShared("claude-auth.mode", this.authMode);
-        this.authMessage = `Switched to ${targetMode === "api" ? "API billing" : "Subscription"}.`;
+        const response = await exec("node", [`${appHome()}/mods/account-usage/account-control.mjs`, "switch-auth", account.id, targetMode]);
+        if (response.code !== 0) throw new Error((response.stderr || response.stdout || `Helper exited ${response.code}`).trim());
+        const payload = JSON.parse(response.stdout);
+        account.authMode = payload.mode;
+        this.authMessages[account.id] = `Switched this profile to ${targetMode === "api" ? "API billing" : "Subscription"}.`;
+        setShared("account-usage.latest", { updatedAt: this.updatedAt, results: this.results });
       } catch (error) {
-        this.authError = safeAuthMessage(error);
+        this.authErrors[account.id] = safeAuthMessage(error);
       } finally {
-        this.authLoading = false;
+        this.authLoading.delete(account.id);
         cx.notify();
       }
     });
   }
 
   subscriptionReady(account) {
-    return subscriptionCapacityAvailable(this.authMode, account);
+    return subscriptionCapacityAvailable(account.authMode, account);
   }
 
-  authSegment(t, mode, label) {
-    const selected = this.authMode === mode;
-    const enabled = !this.authLoading && ["subscription", "api"].includes(this.authMode) && !selected;
-    return div().id(`claude-mode-${mode}`).h(24).px(8).flex().items_center().justify_center().rounded(5).text_size(10).font_medium().cursor_pointer()
+  authSegment(t, account, mode, label) {
+    const selected = account.authMode === mode;
+    const enabled = !this.authLoading.has(account.id) && ["subscription", "api"].includes(account.authMode) && !selected;
+    return div().id(`claude-mode-${account.id}-${mode}`).h(24).px(8).flex().items_center().justify_center().rounded(5).text_size(10).font_medium().cursor_pointer()
       .bg(selected ? t.selected : t.raised).text_color(selected ? t.foreground : enabled ? t.muted : t.dim)
-      .when(enabled, (el) => el.hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_event, cx) => this.switchAuth(mode, cx)))
+      .when(enabled, (el) => el.hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_event, cx) => { cx.stop_propagation(); this.switchAuth(account, mode, cx); }))
       .child(label);
   }
 
-  authToggle(t) {
-    return h_flex().p(2).gap(2).rounded(7).bg(t.raised)
-      .child(this.authSegment(t, "subscription", "Sub"))
-      .child(this.authSegment(t, "api", "API"));
+  authToggle(t, account) {
+    return h_flex().p(2).gap(2).rounded(7).bg(t.raised).on_mouse_down("left", (_event, cx) => cx.stop_propagation())
+      .child(this.authSegment(t, account, "subscription", "Sub"))
+      .child(this.authSegment(t, account, "api", "API"));
   }
 
-  row(t, label, window) {
+  row(t, label, window, expanded) {
     const percent = window?.usedPercent;
-    // Vs-last-period and pace, once there's enough recorded history to say
-    // either honestly (see usage-pace.mjs): how this compares to the same
-    // point last cycle, and whether today's rate will last until reset.
     const extra = [window?.deltaLabel, window?.pace].filter(Boolean).join(" · ");
-    return v_flex().gap(4)
-      .child(h_flex().items_center().gap(9)
-        .child(div().w(48).flex_none().text_size(11).text_color(t.muted).child(label))
+    return v_flex().gap(2)
+      .child(h_flex().h(18).items_center().gap(7)
+        .child(div().w(38).flex_none().text_size(10.5).text_color(t.muted).child(label))
         .child(meter(t, percent))
-        .child(div().w(38).flex_none().text_right().font_semibold().text_size(11.5).text_color(usageColor(t, percent)).child(`${Math.round(percent)}%`)))
-      .child(div().pl(57).text_size(10).text_color(t.dim).child(resetWords(window?.resetsAt)))
-      .when(Boolean(extra), (el) => el.child(div().pl(57).text_size(10).text_color(t.dim).child(extra)));
+        .child(div().w(34).flex_none().text_right().font_semibold().text_size(10.5).text_color(usageColor(t, percent)).child(`${Math.round(percent)}%`))
+        .child(div().w(92).flex_none().truncate().text_right().text_size(9.5).text_color(t.dim).child(resetWords(window?.resetsAt))))
+      .when(expanded && Boolean(extra), (el) => el.child(div().pl(45).text_size(9.5).text_color(t.dim).child(extra)));
   }
 
   card(t, account, index) {
@@ -160,21 +135,26 @@ export default class AccountUsage extends View {
     const plan = account.plan ? ` · ${account.plan}` : "";
     const hasWindows = Boolean(account.session || account.weekly);
     const ready = account.kind === "claude" && this.subscriptionReady(account);
-    return v_flex().id(`account-${index}`).flex_none().p(10).gap(8).rounded(8).border_1().border_color(t.border).bg(t.background)
-      .child(h_flex().items_center().gap(8)
-        .child(div().size(24).flex_none().rounded(6).bg(t.raised).flex().items_center().justify_center().child(svg(icon).size(15).text_color(t.foreground)))
-        .child(div().font_semibold().text_size(12.5).child(account.label))
-        .child(div().text_size(10).text_color(t.dim).child(`${account.kind}${plan}`))
+    const expanded = this.expanded.has(account.id);
+    return v_flex().id(`account-${index}`).flex_none().p(8).gap(5).rounded(8).border_1().border_color(t.border).bg(t.background)
+      .child(h_flex().id(`account-head-${account.id}`).h(28).items_center().gap(7).cursor_pointer().rounded(6).hover((el) => el.bg(t.hover))
+        .on_click((_event, cx) => { expanded ? this.expanded.delete(account.id) : this.expanded.add(account.id); cx.notify(); })
+        .child(div().size(22).flex_none().rounded(6).bg(t.raised).flex().items_center().justify_center().child(svg(icon).size(14).text_color(t.foreground)))
+        .child(v_flex().min_w(0).gap(1)
+          .child(div().font_semibold().text_size(11.8).child(account.label))
+          .when(Boolean(account.email), (el) => el.child(div().max_w(185).truncate().text_size(9.2).text_color(t.muted).child(account.email))))
+        .child(div().text_size(9.5).text_color(t.dim).child(`${account.kind}${plan}`))
         .child(div().flex_1())
-        .when(ready, (el) => el.child(h_flex().gap(4).items_center().text_size(9.5).text_color(t.ansi1)
-          .child(div().size(5).rounded_full().bg(t.ansi1)).child("Subscription ready")))
-        .when(Boolean(account.stale), (el) => el.child(div().text_size(9.5).text_color(t.ansi3).child("Cached")))
-        .when(account.kind === "claude", (el) => el.child(this.authToggle(t))))
-      .when(Boolean(account.error), (el) => el.child(div().px(8).py(7).rounded(6).bg(t.ansi1 + "16").text_color(t.ansi1).text_size(11).child(account.error)))
-      .when(!account.error && Boolean(account.session), (el) => el.child(this.row(t, "Session", account.session)))
-      .when(!account.error && Boolean(account.weekly), (el) => el.child(this.row(t, "Week", account.weekly)))
+        .when(ready, (el) => el.child(h_flex().gap(3).items_center().text_size(9).text_color(t.ansi1)
+          .child(div().size(5).rounded_full().bg(t.ansi1)).child("Ready")))
+        .when(Boolean(account.stale), (el) => el.child(div().text_size(9).text_color(t.ansi3).child("Cached")))
+        .when(account.kind === "claude" && ["subscription", "api"].includes(account.authMode), (el) => el.child(this.authToggle(t, account)))
+        .child(div().w(14).text_center().text_size(10).text_color(t.dim).child(expanded ? "▴" : "▾")))
+      .when(Boolean(account.error), (el) => el.child(div().px(7).py(5).rounded(6).bg(t.ansi1 + "16").text_color(t.ansi1).text_size(10).child(account.error)))
+      .when(!account.error && Boolean(account.session), (el) => el.child(this.row(t, "5h", account.session, expanded)))
+      .when(!account.error && Boolean(account.weekly), (el) => el.child(this.row(t, "Week", account.weekly, expanded)))
       .when(!account.error && !hasWindows, (el) => el.child(div().text_size(11).text_color(t.dim).child("No usage window available")))
-      .when(account.kind === "claude" && Boolean(this.authError || this.authMessage), (el) => el.child(div().text_size(10).text_color(this.authError ? t.ansi1 : t.done).child(this.authError || this.authMessage)));
+      .when(account.kind === "claude" && Boolean(this.authErrors[account.id] || this.authMessages[account.id]), (el) => el.child(div().text_size(10).text_color(this.authErrors[account.id] ? t.ansi1 : t.done).child(this.authErrors[account.id] || this.authMessages[account.id])));
   }
 
   render(cx) {
@@ -182,20 +162,20 @@ export default class AccountUsage extends View {
     const updated = this.updatedAt ? new Date(this.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
     return v_flex().id("account-usage").track_focus(this.handle).w_full().h(400).min_h(0).bg(t.popover).text_color(t.foreground).text_size(12)
       .on_key_down((event, cx) => {
-        if (event.key === "r") { this.refresh(cx); this.refreshAuth(cx); cx.stop_propagation(); }
+        if (event.key === "r") { this.refresh(cx); cx.stop_propagation(); }
       })
       .child(h_flex().h(44).flex_none().px(12).items_center().gap(8).border_b(1).border_color(t.border)
         .child(div().font_semibold().text_size(13.5).child("Accounts"))
-        .child(div().text_size(10).text_color(t.dim).child("Usage · billing"))
+        .child(div().text_size(10).text_color(t.dim).child("Usage · per-chat accounts"))
         .child(div().flex_1())
         .when(Boolean(updated), (el) => el.child(div().text_size(9.8).text_color(t.dim).child(`Checked ${updated}`)))
-        .child(div().id("usage-refresh").size(26).flex_none().rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(this.loading ? t.dim : t.muted).hover((el) => el.bg(t.hover).text_color(t.foreground)).on_click((_event, cx) => { this.refresh(cx); this.refreshAuth(cx); }).child("↻"))
+        .child(div().id("usage-refresh").size(26).flex_none().rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(this.loading ? t.dim : t.muted).hover((el) => el.bg(t.hover).text_color(t.foreground)).on_click((_event, cx) => this.refresh(cx)).child("↻"))
         .child(div().id("usage-close").size(26).flex_none().rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(t.muted).hover((el) => el.bg(t.hover).text_color(t.foreground)).on_click(() => closeOverlay(props().overlay)).child("×")))
-      .child(v_flex().id("usage-list").flex_1().min_h(0).overflow_y_scrollbar().p(12).gap(8)
+      .child(v_flex().id("usage-list").flex_1().min_h(0).overflow_y_scrollbar().p(10).gap(6)
         .when(this.results.length === 0, (el) => el.child(div().py(40).text_center().text_color(t.dim).child("No cached usage yet")))
         .when(Boolean(this.error), (el) => el.child(div().p(12).rounded(8).bg(t.ansi1 + "16").text_color(t.ansi1).child(this.error)))
         .children(this.results.map((account, index) => this.card(t, account, index))))
       .child(h_flex().h(26).flex_none().px(12).items_center().border_t(1).border_color(t.border).text_size(9.5).text_color(t.dim)
-        .child("R refresh · billing changes apply to new Claude sessions"));
+        .child("R refresh · Click an account for pace details · Cmd+Shift+P starts a chat"));
   }
 }

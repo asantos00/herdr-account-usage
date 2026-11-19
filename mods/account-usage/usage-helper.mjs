@@ -4,6 +4,9 @@ import { existsSync, readFileSync, realpathSync, renameSync, writeFileSync } fro
 import { homedir, userInfo } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { identityForAccount } from "./account-identity.mjs";
+import { discoverAccountProfiles } from "./account-profiles.mjs";
+import { inspectAuthMode } from "./claude-auth.mjs";
 import { normalizeHistory, recordUsageHistory, usageDelta, usageDeltaLabel, usageProjection } from "./usage-pace.mjs";
 
 const TIMEOUT_MS = 10_000;
@@ -49,19 +52,8 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-export function discoverAccounts() {
-  const accounts = [
-    { kind: "codex", configDir: process.env.CODEX_HOME || join(home, ".codex"), label: "Codex" },
-    { kind: "claude", configDir: process.env.CLAUDE_CONFIG_DIR || join(home, ".claude"), label: "Claude" },
-  ];
-  const seen = new Set();
-  return accounts.filter((account) => {
-    if (account.kind !== "codex" && account.kind !== "claude") return false;
-    const key = `${account.kind}:${normalize(account.configDir)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+export function discoverAccounts(options) {
+  return discoverAccountProfiles(options);
 }
 
 export async function fetchCodex(account, fetchFn = fetch) {
@@ -148,21 +140,37 @@ export async function fetchClaude(account, fetchFn = fetch) {
   };
 }
 
+function claudeAuthMode(account) {
+  try {
+    return inspectAuthMode(readJson(join(account.configDir, "settings.json"))).mode;
+  } catch {
+    return "invalid";
+  }
+}
+
 export async function allUsage(accounts = discoverAccounts()) {
   return Promise.all(accounts.map(async (account) => {
+    const identified = { ...account, ...identityForAccount(account) };
+    const authMode = account.kind === "claude" ? claudeAuthMode(account) : null;
     try {
-      return account.kind === "codex" ? await fetchCodex(account) : await fetchClaude(account);
+      const usage = account.kind === "codex" ? await fetchCodex(identified) : await fetchClaude(identified);
+      return { ...usage, authMode };
     } catch (error) {
-      return { ...account, session: null, weekly: null, error: error instanceof Error ? error.message : String(error) };
+      return { ...identified, authMode, session: null, weekly: null, error: error instanceof Error ? error.message : String(error) };
     }
   }));
 }
 
 function cacheable(account, checkedAt) {
   return {
+    ...(account.id ? { id: account.id } : {}),
     kind: account.kind,
     label: account.label,
+    email: account.email || null,
+    name: account.name || null,
+    organization: account.organization || null,
     plan: account.plan || null,
+    ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
     session: account.session || null,
     weekly: account.weekly || null,
     checkedAt,
@@ -170,14 +178,27 @@ function cacheable(account, checkedAt) {
 }
 
 export function mergeWithCache(fresh, cached = { results: [] }, checkedAt = Date.now()) {
-  const prior = new Map((cached.results || []).map((account) => [`${account.kind}:${account.label}`, account]));
+  const prior = new Map((cached.results || []).map((account) => [account.id || `${account.kind}:${account.label}`, account]));
   const results = fresh.map((account) => {
-    const key = `${account.kind}:${account.label}`;
+    const key = account.id || `${account.kind}:${account.label}`;
     if (!account.error) return cacheable(account, checkedAt);
     const previous = prior.get(key);
     return previous
-      ? { ...previous, stale: true, warning: account.error }
-      : { kind: account.kind, label: account.label, plan: null, session: null, weekly: null, error: account.error, checkedAt: null };
+      ? {
+        ...previous,
+        email: account.email || previous.email || null,
+        name: account.name || previous.name || null,
+        organization: account.organization || previous.organization || null,
+        ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
+        stale: true,
+        warning: account.error,
+      }
+      : {
+        ...(account.id ? { id: account.id } : {}), kind: account.kind, label: account.label,
+        email: account.email || null, name: account.name || null, organization: account.organization || null, plan: null,
+        ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
+        session: null, weekly: null, error: account.error, checkedAt: null,
+      };
   });
   const successful = results.filter((account) => !account.error).map(({ stale, warning, ...account }) => account);
   return {
@@ -217,8 +238,9 @@ function freshSamples(results) {
   const samples = [];
   for (const account of results) {
     if (account.error || account.stale) continue;
-    if (account.session) samples.push({ kind: account.kind, window: "session", usedPercent: account.session.usedPercent });
-    if (account.weekly) samples.push({ kind: account.kind, window: "weekly", usedPercent: account.weekly.usedPercent });
+    const historyKey = account.id || account.kind;
+    if (account.session) samples.push({ kind: historyKey, window: "session", usedPercent: account.session.usedPercent });
+    if (account.weekly) samples.push({ kind: historyKey, window: "weekly", usedPercent: account.weekly.usedPercent });
   }
   return samples;
 }
@@ -229,8 +251,9 @@ function freshSamples(results) {
 function withPace(account, history, now) {
   const annotate = (window, windowKind, label) => {
     if (!window) return window;
-    const delta = usageDelta(history, account.kind, windowKind, window.usedPercent, window.windowMinutes, now);
-    const pace = usageProjection(history, account.kind, windowKind, window.usedPercent, window.resetsAt, window.windowMinutes, now);
+    const historyKey = account.id || account.kind;
+    const delta = usageDelta(history, historyKey, windowKind, window.usedPercent, window.windowMinutes, now);
+    const pace = usageProjection(history, historyKey, windowKind, window.usedPercent, window.resetsAt, window.windowMinutes, now);
     return {
       ...window,
       delta,

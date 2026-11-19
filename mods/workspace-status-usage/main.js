@@ -1,10 +1,12 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, appHome, exec, keys, run, setShared, shared, spaces, theme, window } from "herdr";
+import { agents, appHome, checking, exec, keys, run, setShared, shared, spaces, theme, window } from "herdr";
+import { compactUsageLabel, mostUrgentUsage } from "./usage-summary.mjs";
 
 export default class WorkspaceStatus extends View {
   init(_props, cx) {
     this.usageLoading = false;
+    if (checking()) return;
     this.refreshUsage(cx);
     cx.timer.every(300000, (cx) => this.refreshUsage(cx));
   }
@@ -39,12 +41,14 @@ export default class WorkspaceStatus extends View {
     return key ? `${key}  commands` : "commands";
   }
 
-  usageValue(kind) {
+  usageAccounts(kind) {
     const latest = shared("account-usage.latest");
     const results = Array.isArray(latest?.results) ? latest.results : [];
-    const account = results.find((item) => item.kind === kind);
-    const percent = account?.weekly?.usedPercent ?? account?.session?.usedPercent;
-    return Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : null;
+    return results.filter((item) => item.kind === kind);
+  }
+
+  usageSummary(kind) {
+    return mostUrgentUsage(this.usageAccounts(kind));
   }
 
   usageColor(t, percent) {
@@ -63,23 +67,19 @@ export default class WorkspaceStatus extends View {
   }
 
   usageIndicator(t) {
-    const mode = shared("claude-auth.mode");
-    const ready = this.subscriptionReady();
+    const codex = this.usageAccounts("codex");
+    const claude = this.usageAccounts("claude");
+    const codexSummary = this.usageSummary("codex");
+    const claudeSummary = this.usageSummary("claude");
+    const mode = claude.length === 1 ? claude[0].authMode : null;
+    const ready = claude.length === 1 && mode === "api" && Number.isFinite(claude[0].session?.usedPercent) && claude[0].session.usedPercent < 100;
     return h_flex().gap(7).items_center()
-      .child(this.miniBar(t, "Cx", this.usageValue("codex")))
-      .child(this.miniBar(t, "Cl", this.usageValue("claude")))
+      .child(this.miniBar(t, compactUsageLabel("codex", codex.length, codexSummary), codexSummary?.percent))
+      .child(this.miniBar(t, compactUsageLabel("claude", claude.length, claudeSummary), claudeSummary?.percent))
       .when(mode === "api", (el) => el.child(h_flex().gap(3).items_center().text_size(9).text_color(ready ? t.ansi1 : t.dim)
         .when(ready, (marker) => marker.child(div().size(5).rounded_full().bg(t.ansi1)))
         .child("API")))
       .when(mode === "subscription", (el) => el.child(div().text_size(9).text_color(t.done).child("Sub")));
-  }
-
-  subscriptionReady() {
-    if (shared("claude-auth.mode") !== "api") return false;
-    const latest = shared("account-usage.latest");
-    const claude = Array.isArray(latest?.results) ? latest.results.find((item) => item.kind === "claude") : null;
-    const used = claude?.session?.usedPercent;
-    return Number.isFinite(used) && used < 100;
   }
 
   render() {
