@@ -9,5 +9,5 @@ test("formats Enterprise credit spend without browser-only globals", () => {
     currency: "USD",
     exponent: 2,
   }), "$47.58 / $200");
-  assert.equal(extraUsageWords({ usedPercent: 24 }), "Credit usage");
+  assert.equal(extraUsageWords({ usedPercent: 24, usedAmountMinor: null, limitAmountMinor: null, currency: "USD" }), "Credit usage");
 });
