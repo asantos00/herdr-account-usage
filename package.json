@@ -1,0 +1,13 @@
+{
+  "name": "herdr-account-usage",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Codex and Claude usage meters for the Herdr status bar.",
+  "scripts": {
+    "test": "node --test mods/account-usage/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

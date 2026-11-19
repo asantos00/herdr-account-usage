@@ -1,0 +1,10 @@
+{
+  "place": "none",
+  "title": "Account Usage",
+  "focusable": true,
+  "overlay": {
+    "kind": "popup",
+    "width": 620,
+    "height": 400
+  }
+}
