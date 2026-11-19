@@ -6,7 +6,7 @@ function percent(value) {
 export function mostUrgentUsage(accounts = []) {
   let best = null;
   for (const account of accounts) {
-    for (const window of ["session", "weekly"]) {
+    for (const window of ["session", "weekly", "extra"]) {
       const usage = account?.[window];
       const used = percent(usage?.usedPercent);
       if (used == null) continue;
@@ -25,6 +25,7 @@ export function mostUrgentUsage(accounts = []) {
 function windowLabel(summary) {
   if (!summary) return "";
   if (summary.window === "weekly") return "W";
+  if (summary.window === "extra") return "$";
   const minutes = summary.windowMinutes;
   if (!Number.isFinite(minutes) || minutes <= 0) return "S";
   if (minutes < 60) return `${Math.round(minutes)}m`;

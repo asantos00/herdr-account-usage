@@ -38,6 +38,20 @@ test("compares every window across multiple accounts", () => {
   assert.equal(summary.accountId, "two");
 });
 
+test("includes Enterprise extra-credit usage in the urgent summary", () => {
+  assert.deepEqual(mostUrgentUsage([{
+    id: "claude-enterprise",
+    session: null,
+    weekly: null,
+    extra: { usedPercent: 81 },
+  }]), {
+    percent: 81,
+    window: "extra",
+    windowMinutes: null,
+    accountId: "claude-enterprise",
+  });
+});
+
 test("a tie favors the shorter session because it resets sooner", () => {
   assert.equal(mostUrgentUsage([{
     session: { usedPercent: 100 },
@@ -48,5 +62,6 @@ test("a tie favors the shorter session because it resets sooner", () => {
 test("compact labels identify provider, account count, and winning window", () => {
   assert.equal(compactUsageLabel("claude", 1, { window: "session", windowMinutes: 300 }), "Cl·5h");
   assert.equal(compactUsageLabel("codex", 2, { window: "weekly", windowMinutes: 10080 }), "Cx2·W");
+  assert.equal(compactUsageLabel("claude", 1, { window: "extra" }), "Cl·$");
   assert.equal(compactUsageLabel("claude", 1, null), "Cl");
 });

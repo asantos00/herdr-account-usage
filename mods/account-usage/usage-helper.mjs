@@ -48,6 +48,25 @@ export function classifyWindows(windows) {
   };
 }
 
+export function claudeExtraUsage(body) {
+  const extra = body?.extra_usage;
+  const spend = body?.spend;
+  if (extra?.is_enabled === false || spend?.enabled === false) return null;
+  const usedPercent = clampPercent(spend?.percent ?? extra?.utilization);
+  if (usedPercent === null) return null;
+  const used = spend?.used;
+  const limit = spend?.limit;
+  return {
+    usedPercent,
+    usedAmountMinor: Number.isFinite(Number(used?.amount_minor)) ? Number(used.amount_minor) : null,
+    limitAmountMinor: Number.isFinite(Number(limit?.amount_minor)) ? Number(limit.amount_minor) : null,
+    currency: used?.currency || limit?.currency || extra?.currency || null,
+    exponent: Number.isFinite(Number(used?.exponent ?? limit?.exponent ?? extra?.decimal_places))
+      ? Number(used?.exponent ?? limit?.exponent ?? extra?.decimal_places)
+      : 2,
+  };
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -120,6 +139,12 @@ function claudeToken(configDir) {
   return existsSync(path) ? parseClaudeCredential(readFileSync(path, "utf8")) : null;
 }
 
+export function claudeUsage(body) {
+  const session = normalizeWindow(body?.five_hour, 300);
+  const weekly = normalizeWindow(body?.seven_day, 10080);
+  return { session, weekly, extra: session || weekly ? null : claudeExtraUsage(body) };
+}
+
 export async function fetchClaude(account, fetchFn = fetch) {
   const token = claudeToken(account.configDir);
   if (!token) throw new Error("Not signed in");
@@ -133,11 +158,7 @@ export async function fetchClaude(account, fetchFn = fetch) {
   });
   if (!response.ok) throw new Error(`Usage request failed (HTTP ${response.status})`);
   const body = await response.json();
-  return {
-    ...account,
-    session: normalizeWindow(body.five_hour, 300),
-    weekly: normalizeWindow(body.seven_day, 10080),
-  };
+  return { ...account, ...claudeUsage(body) };
 }
 
 function claudeAuthMode(account) {
@@ -173,6 +194,7 @@ function cacheable(account, checkedAt) {
     ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
     session: account.session || null,
     weekly: account.weekly || null,
+    extra: account.extra || null,
     checkedAt,
   };
 }
@@ -190,6 +212,7 @@ export function mergeWithCache(fresh, cached = { results: [] }, checkedAt = Date
         name: account.name || previous.name || null,
         organization: account.organization || previous.organization || null,
         ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
+        extra: previous.session || previous.weekly ? null : previous.extra || null,
         stale: true,
         warning: account.error,
       }
@@ -197,7 +220,7 @@ export function mergeWithCache(fresh, cached = { results: [] }, checkedAt = Date
         ...(account.id ? { id: account.id } : {}), kind: account.kind, label: account.label,
         email: account.email || null, name: account.name || null, organization: account.organization || null, plan: null,
         ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
-        session: null, weekly: null, error: account.error, checkedAt: null,
+        session: null, weekly: null, extra: null, error: account.error, checkedAt: null,
       };
   });
   const successful = results.filter((account) => !account.error).map(({ stale, warning, ...account }) => account);
