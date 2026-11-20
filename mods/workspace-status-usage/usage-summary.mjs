@@ -6,7 +6,7 @@ function percent(value) {
 export function mostUrgentUsage(accounts = []) {
   let best = null;
   for (const account of accounts) {
-    for (const window of ["session", "weekly"]) {
+    for (const window of ["session", "weekly", "extra"]) {
       const usage = account?.[window];
       const used = percent(usage?.usedPercent);
       if (used == null) continue;
@@ -25,15 +25,21 @@ export function mostUrgentUsage(accounts = []) {
 function windowLabel(summary) {
   if (!summary) return "";
   if (summary.window === "weekly") return "W";
+  if (summary.window === "extra") return "$";
   const minutes = summary.windowMinutes;
   if (!Number.isFinite(minutes) || minutes <= 0) return "S";
   if (minutes < 60) return `${Math.round(minutes)}m`;
   return `${Math.round(minutes / 60)}h`;
 }
 
-export function compactUsageLabel(kind, accountCount, summary) {
-  const provider = kind === "codex" ? "Cx" : "Cl";
+export function compactUsageMetaLabel(accountCount, summary) {
   const count = accountCount > 1 ? String(accountCount) : "";
   const window = windowLabel(summary);
-  return `${provider}${count}${window ? `·${window}` : ""}`;
+  return [count, window].filter(Boolean).join("·");
+}
+
+export function compactUsageLabel(kind, accountCount, summary) {
+  const provider = kind === "codex" ? "Cx" : "Cl";
+  const meta = compactUsageMetaLabel(accountCount, summary);
+  return `${provider}${meta ? `${accountCount > 1 ? "" : "·"}${meta}` : ""}`;
 }

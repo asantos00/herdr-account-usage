@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clampPercent, classifyWindows, epochMs, mergeWithCache } from "./usage-helper.mjs";
+import { clampPercent, classifyWindows, claudeExtraUsage, claudeUsage, epochMs, mergeWithCache } from "./usage-helper.mjs";
 
 test("clamps percentages", () => {
   assert.equal(clampPercent(-2), 0);
@@ -18,6 +18,30 @@ test("keeps session and weekly windows distinct", () => {
   const weekly = { usedPercent: 20, windowMinutes: 10080 };
   assert.deepEqual(classifyWindows([weekly, session]), { session, weekly });
   assert.deepEqual(classifyWindows([weekly]), { session: null, weekly });
+});
+
+test("normalizes Claude Enterprise extra-credit usage", () => {
+  assert.deepEqual(claudeExtraUsage({
+    extra_usage: { is_enabled: true, utilization: 20.885, currency: "USD", decimal_places: 2 },
+    spend: {
+      percent: 21,
+      used: { amount_minor: 4177, currency: "USD", exponent: 2 },
+      limit: { amount_minor: 20000, currency: "USD", exponent: 2 },
+    },
+  }), {
+    usedPercent: 21,
+    usedAmountMinor: 4177,
+    limitAmountMinor: 20000,
+    currency: "USD",
+    exponent: 2,
+  });
+  assert.equal(claudeExtraUsage({ extra_usage: { is_enabled: false, utilization: 0 } }), null);
+});
+
+test("uses extra-credit usage only when plan windows are unavailable", () => {
+  const extra = { extra_usage: { is_enabled: true, utilization: 24 } };
+  assert.equal(claudeUsage(extra).extra.usedPercent, 24);
+  assert.equal(claudeUsage({ ...extra, five_hour: { utilization: 10 } }).extra, null);
 });
 
 test("keeps the last successful usage when a provider check fails", () => {
@@ -39,8 +63,16 @@ test("cache excludes credential locations and transient errors", () => {
   }], { results: [] }, 300);
   assert.deepEqual(merged.cache.results[0], {
     kind: "codex", label: "Codex", email: null, name: null, organization: null,
-    plan: "pro", session: null, weekly: { usedPercent: 17 }, checkedAt: 300,
+    plan: "pro", session: null, weekly: { usedPercent: 17 }, extra: null, checkedAt: 300,
   });
+});
+
+test("cache exposes the safe account display color", () => {
+  const merged = mergeWithCache([{
+    id: "claude-one", kind: "claude", label: "Claude", color: "#F59E75",
+    session: null, weekly: { usedPercent: 17 },
+  }], { results: [] }, 300);
+  assert.equal(merged.cache.results[0].color, "#F59E75");
 });
 
 test("cache keeps same-provider profiles separate by stable id", () => {
@@ -59,10 +91,11 @@ test("cache keeps same-provider profiles separate by stable id", () => {
 
 test("a failed usage refresh still keeps the current Claude billing mode", () => {
   const previous = {
-    results: [{ id: "claude-one", kind: "claude", label: "Claude", authMode: "api", plan: null, session: null, weekly: { usedPercent: 30 }, checkedAt: 100 }],
+    results: [{ id: "claude-one", kind: "claude", label: "Claude", authMode: "api", plan: null, session: null, weekly: { usedPercent: 30 }, extra: { usedPercent: 100 }, checkedAt: 100 }],
   };
   const merged = mergeWithCache([
     { id: "claude-one", kind: "claude", label: "Claude", authMode: "subscription", error: "offline" },
   ], previous, 200);
   assert.equal(merged.results[0].authMode, "subscription");
+  assert.equal(merged.results[0].extra, null);
 });

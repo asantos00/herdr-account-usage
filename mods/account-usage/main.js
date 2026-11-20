@@ -2,6 +2,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { appHome, checking, closeOverlay, exec, props, setShared, shared, theme } from "herdr";
 import { subscriptionCapacityAvailable } from "./claude-auth.mjs";
+import { extraUsageWords } from "./extra-usage.mjs";
 
 const SEGMENTS = 16;
 
@@ -118,7 +119,7 @@ export default class AccountUsage extends View {
       .child(this.authSegment(t, account, "api", "API"));
   }
 
-  row(t, label, window, expanded) {
+  row(t, label, window, expanded, detail = null) {
     const percent = window?.usedPercent;
     const extra = [window?.deltaLabel, window?.pace].filter(Boolean).join(" · ");
     return v_flex().gap(2)
@@ -126,14 +127,14 @@ export default class AccountUsage extends View {
         .child(div().w(38).flex_none().text_size(10.5).text_color(t.muted).child(label))
         .child(meter(t, percent))
         .child(div().w(34).flex_none().text_right().font_semibold().text_size(10.5).text_color(usageColor(t, percent)).child(`${Math.round(percent)}%`))
-        .child(div().w(92).flex_none().truncate().text_right().text_size(9.5).text_color(t.dim).child(resetWords(window?.resetsAt))))
+        .child(div().w(92).flex_none().truncate().text_right().text_size(9.5).text_color(t.dim).child(detail ?? resetWords(window?.resetsAt))))
       .when(expanded && Boolean(extra), (el) => el.child(div().pl(45).text_size(9.5).text_color(t.dim).child(extra)));
   }
 
   card(t, account, index) {
     const icon = account.kind === "codex" ? "icons/codex.svg" : "icons/claude.svg";
     const plan = account.plan ? ` · ${account.plan}` : "";
-    const hasWindows = Boolean(account.session || account.weekly);
+    const hasWindows = Boolean(account.session || account.weekly || account.extra);
     const ready = account.kind === "claude" && this.subscriptionReady(account);
     const expanded = this.expanded.has(account.id);
     return v_flex().id(`account-${index}`).flex_none().p(8).gap(5).rounded(8).border_1().border_color(t.border).bg(t.background)
@@ -153,6 +154,7 @@ export default class AccountUsage extends View {
       .when(Boolean(account.error), (el) => el.child(div().px(7).py(5).rounded(6).bg(t.ansi1 + "16").text_color(t.ansi1).text_size(10).child(account.error)))
       .when(!account.error && Boolean(account.session), (el) => el.child(this.row(t, "5h", account.session, expanded)))
       .when(!account.error && Boolean(account.weekly), (el) => el.child(this.row(t, "Week", account.weekly, expanded)))
+      .when(!account.error && Boolean(account.extra), (el) => el.child(this.row(t, "Extra", account.extra, expanded, extraUsageWords(account.extra))))
       .when(!account.error && !hasWindows, (el) => el.child(div().text_size(11).text_color(t.dim).child("No usage window available")))
       .when(account.kind === "claude" && Boolean(this.authErrors[account.id] || this.authMessages[account.id]), (el) => el.child(div().text_size(10).text_color(this.authErrors[account.id] ? t.ansi1 : t.done).child(this.authErrors[account.id] || this.authMessages[account.id])));
   }

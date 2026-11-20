@@ -2,7 +2,7 @@
 
 ![Herdr account usage status](preview.png)
 
-A Herdr layout add-on that puts Codex and Claude consumption meters in the bottom-right status bar. Each collapsed meter shows whichever window is closer to exhaustion—the short session or the week—and labels it (`5h` or `W`). Click the meters to inspect every local account, see its email and usage, and manage Claude billing mode. Account-launched chats also get stable, distinct icon colors in the Agents sidebar.
+A Herdr layout add-on that puts Codex and Claude consumption meters in the bottom-right status bar. Each collapsed meter shows whichever limit is closer to exhaustion—the short session, week, or Enterprise extra-credit cap—and labels it (`5h`, `W`, or `$`). Click the meters to inspect every local account, see its email and usage, and manage Claude billing mode. Account-launched chats also get stable, distinct icon colors in the Agents sidebar.
 
 ## Requirements
 

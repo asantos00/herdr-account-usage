@@ -1,7 +1,9 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { agents, appHome, checking, exec, keys, run, setShared, shared, spaces, theme, window } from "herdr";
-import { compactUsageLabel, mostUrgentUsage } from "./usage-summary.mjs";
+import { compactUsageMetaLabel, mostUrgentUsage } from "./usage-summary.mjs";
+
+const PROVIDER_COLORS = Object.freeze({ codex: "#59C18C", claude: "#F59E75" });
 
 export default class WorkspaceStatus extends View {
   init(_props, cx) {
@@ -13,7 +15,8 @@ export default class WorkspaceStatus extends View {
 
   refreshUsage(cx) {
     const latest = shared("account-usage.latest");
-    if (this.usageLoading || (latest?.updatedAt && Date.now() - latest.updatedAt < 300000)) return;
+    const missingColors = Array.isArray(latest?.results) && latest.results.some((account) => !account.color);
+    if (this.usageLoading || (!missingColors && latest?.updatedAt && Date.now() - latest.updatedAt < 300000)) return;
     this.usageLoading = true;
     cx.spawn(async (cx) => {
       try {
@@ -58,10 +61,18 @@ export default class WorkspaceStatus extends View {
     return t.ansi2;
   }
 
-  miniBar(t, label, percent) {
+  miniBar(t, kind, accounts, summary) {
+    const percent = summary?.percent;
     const filled = percent == null ? 0 : Math.round(percent / 10);
+    const account = accounts.find((item) => item.id === summary?.accountId) ?? accounts[0];
+    const color = account?.color ?? PROVIDER_COLORS[kind] ?? t.dim;
+    const provider = kind === "codex" ? "Codex" : "Claude";
+    const meta = compactUsageMetaLabel(accounts.length, summary);
+    const detail = percent == null ? provider : `${account?.label ?? provider}: ${Math.round(percent)}%`;
     return h_flex().gap(4).items_center()
-      .child(div().text_size(9).text_color(t.dim).child(label))
+      .child(div().size(14).flex_none().rounded(4).bg(account ? `${color}2B` : t.raised).flex().items_center().justify_center().tooltip(detail)
+        .child(svg(`icons/${kind}.svg`).size(9).text_color(color)))
+      .when(Boolean(meta), (el) => el.child(div().text_size(9).text_color(t.dim).child(meta)))
       .child(h_flex().gap(1).children(Array.from({ length: 10 }, (_, index) =>
         div().w(3).h(4).rounded(1).bg(index < filled ? this.usageColor(t, percent) : t.raised))));
   }
@@ -74,8 +85,8 @@ export default class WorkspaceStatus extends View {
     const mode = claude.length === 1 ? claude[0].authMode : null;
     const ready = claude.length === 1 && mode === "api" && Number.isFinite(claude[0].session?.usedPercent) && claude[0].session.usedPercent < 100;
     return h_flex().gap(7).items_center()
-      .child(this.miniBar(t, compactUsageLabel("codex", codex.length, codexSummary), codexSummary?.percent))
-      .child(this.miniBar(t, compactUsageLabel("claude", claude.length, claudeSummary), claudeSummary?.percent))
+      .child(this.miniBar(t, "codex", codex, codexSummary))
+      .child(this.miniBar(t, "claude", claude, claudeSummary))
       .when(mode === "api", (el) => el.child(h_flex().gap(3).items_center().text_size(9).text_color(ready ? t.ansi1 : t.dim)
         .when(ready, (marker) => marker.child(div().size(5).rounded_full().bg(t.ansi1)))
         .child("API")))

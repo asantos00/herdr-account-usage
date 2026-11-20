@@ -12,7 +12,7 @@ Clicking the control opens a centered 620×400 themed popup. Its header says “
 
 ## How it behaves
 
-The status map refreshes usage when it starts and every five minutes. It keeps the last successful values when a provider is unavailable. For each provider it compares every profile's short session and weekly window, then shows the highest percentage; ties favor the shorter session. Labels such as `Cl2·5h` and `Cx·W` identify profile count and the winning window. Clicking it runs `mod.open` for `account-usage`. `Cmd+Shift+U`, when merged from `keys.json`, opens the same popup.
+The status map refreshes usage when it starts and every five minutes. It keeps the last successful values when a provider is unavailable. For each provider it compares every profile's short session, weekly window, and Enterprise extra-credit cap, then shows the highest percentage; ties favor the shorter session. Labels such as `Cl2·5h`, `Cx·W`, and `Cl2·$` identify profile count and the winning limit. Clicking it runs `mod.open` for `account-usage`. `Cmd+Shift+U`, when merged from `keys.json`, opens the same popup.
 
 The popup hydrates from shared cached state, refreshes immediately on open, refreshes every five minutes while visible, and refreshes when the user clicks ↻ or presses `R`. Escape or × closes it. Missing accounts and provider failures stay local to their card.
 
@@ -33,7 +33,7 @@ Each Claude toggle changes only newly started sessions for that profile. It move
 - `account-profiles.mjs` discovers default and suffixed CLI homes or reads an exact local `accounts.json` registry. It gives each profile a path-free stable ID and builds isolated launch commands.
 - `account-identity.mjs` reads only display identity: Codex's email/name claims and Claude's cached OAuth account metadata. An explicit local `email` field is the fallback.
 - `account-control.mjs` resolves a profile ID at launch time, starts its CLI with the matching home variable, and applies profile-specific Claude billing changes without exposing credential paths to shared state.
-- `usage-helper.mjs` reads every discovered Codex and Claude CLI credential in memory, fetches provider usage, writes sanitized per-profile cache and history files atomically with mode `0600`, and emits JSON for the mods.
+- `usage-helper.mjs` reads every discovered Codex and Claude CLI credential in memory, fetches provider usage, normalizes Enterprise extra-credit spend when plan windows are unavailable, writes sanitized per-profile cache and history files atomically with mode `0600`, and emits JSON for the mods.
 - `usage-pace.mjs` records at most one stable sample per ten minutes, retains nine days, compares against the same point in the prior cycle, detects resets, and projects whether the current burn rate will last until reset.
 - `claude-auth.mjs` inspects and safely rewrites the existing Claude settings field pair after an explicit toggle.
 - The popup uses Herdr's shipped `icons/codex.svg` and `icons/claude.svg`. The status bar uses icons from the shipped `workspace-chrome` mod.
