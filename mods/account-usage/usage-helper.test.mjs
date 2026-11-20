@@ -67,6 +67,14 @@ test("cache excludes credential locations and transient errors", () => {
   });
 });
 
+test("cache exposes the safe account display color", () => {
+  const merged = mergeWithCache([{
+    id: "claude-one", kind: "claude", label: "Claude", color: "#F59E75",
+    session: null, weekly: { usedPercent: 17 },
+  }], { results: [] }, 300);
+  assert.equal(merged.cache.results[0].color, "#F59E75");
+});
+
 test("cache keeps same-provider profiles separate by stable id", () => {
   const previous = {
     results: [

@@ -32,9 +32,14 @@ function windowLabel(summary) {
   return `${Math.round(minutes / 60)}h`;
 }
 
-export function compactUsageLabel(kind, accountCount, summary) {
-  const provider = kind === "codex" ? "Cx" : "Cl";
+export function compactUsageMetaLabel(accountCount, summary) {
   const count = accountCount > 1 ? String(accountCount) : "";
   const window = windowLabel(summary);
-  return `${provider}${count}${window ? `·${window}` : ""}`;
+  return [count, window].filter(Boolean).join("·");
+}
+
+export function compactUsageLabel(kind, accountCount, summary) {
+  const provider = kind === "codex" ? "Cx" : "Cl";
+  const meta = compactUsageMetaLabel(accountCount, summary);
+  return `${provider}${meta ? `${accountCount > 1 ? "" : "·"}${meta}` : ""}`;
 }
