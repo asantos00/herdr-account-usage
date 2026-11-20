@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compactUsageLabel, mostUrgentUsage } from "./usage-summary.mjs";
+import { compactUsageLabel, compactUsageMetaLabel, mostUrgentUsage } from "./usage-summary.mjs";
 
 test("uses the short session when it is closer to exhaustion than weekly usage", () => {
   assert.deepEqual(mostUrgentUsage([{
@@ -64,4 +64,10 @@ test("compact labels identify provider, account count, and winning window", () =
   assert.equal(compactUsageLabel("codex", 2, { window: "weekly", windowMinutes: 10080 }), "Cx2·W");
   assert.equal(compactUsageLabel("claude", 1, { window: "extra" }), "Cl·$");
   assert.equal(compactUsageLabel("claude", 1, null), "Cl");
+});
+
+test("icon metadata omits the redundant provider abbreviation", () => {
+  assert.equal(compactUsageMetaLabel(1, { window: "session", windowMinutes: 300 }), "5h");
+  assert.equal(compactUsageMetaLabel(2, { window: "weekly", windowMinutes: 10080 }), "2·W");
+  assert.equal(compactUsageMetaLabel(1, null), "");
 });

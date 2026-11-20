@@ -4,6 +4,7 @@ import { existsSync, readFileSync, realpathSync, renameSync, writeFileSync } fro
 import { homedir, userInfo } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { colorAccountProfiles } from "./account-colors.mjs";
 import { identityForAccount } from "./account-identity.mjs";
 import { discoverAccountProfiles } from "./account-profiles.mjs";
 import { inspectAuthMode } from "./claude-auth.mjs";
@@ -72,7 +73,7 @@ function readJson(path) {
 }
 
 export function discoverAccounts(options) {
-  return discoverAccountProfiles(options);
+  return colorAccountProfiles(discoverAccountProfiles(options));
 }
 
 export async function fetchCodex(account, fetchFn = fetch) {
@@ -187,6 +188,7 @@ function cacheable(account, checkedAt) {
     ...(account.id ? { id: account.id } : {}),
     kind: account.kind,
     label: account.label,
+    ...(account.color ? { color: account.color } : {}),
     email: account.email || null,
     name: account.name || null,
     organization: account.organization || null,
@@ -208,6 +210,7 @@ export function mergeWithCache(fresh, cached = { results: [] }, checkedAt = Date
     return previous
       ? {
         ...previous,
+        ...(account.color || previous.color ? { color: account.color || previous.color } : {}),
         email: account.email || previous.email || null,
         name: account.name || previous.name || null,
         organization: account.organization || previous.organization || null,
@@ -218,6 +221,7 @@ export function mergeWithCache(fresh, cached = { results: [] }, checkedAt = Date
       }
       : {
         ...(account.id ? { id: account.id } : {}), kind: account.kind, label: account.label,
+        ...(account.color ? { color: account.color } : {}),
         email: account.email || null, name: account.name || null, organization: account.organization || null, plan: null,
         ...(account.kind === "claude" ? { authMode: account.authMode || "invalid" } : {}),
         session: null, weekly: null, extra: null, error: account.error, checkedAt: null,
