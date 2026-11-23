@@ -156,4 +156,5 @@ test("the chat launcher opens Pi with the selected Codex subscription", () => {
   assert.match(labels, /label t-account herdr\.account\.label=Work/);
   assert.match(labels, /label t-account herdr\.account\.kind=codex/);
   assert.match(labels, /label t-account herdr\.account\.color=#59C18C/);
+  assert.match(labels, /label t-account herdr\.billing\.route=subscription/);
 });

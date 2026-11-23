@@ -2,7 +2,7 @@
 
 ![Herdr account usage status](preview.png)
 
-A Herdr layout add-on that puts Codex and Claude consumption meters in the bottom-right status bar. Each collapsed meter shows whichever limit is closer to exhaustion—the short session, week, or Enterprise extra-credit cap—and labels it (`5h`, `W`, or `$`). Click the meters to inspect every local account, see its email and usage, and manage Claude billing mode. Account-launched chats also get stable, distinct icon colors in the Agents sidebar.
+A Herdr layout add-on that puts Codex and Claude consumption meters in the bottom-right status bar. Each collapsed meter shows whichever limit is closer to exhaustion—the short session, week, or Enterprise extra-credit cap—and labels it (`5h`, `W`, or `$`). Click the meters to inspect every local account, see its email and usage, and manage Claude billing mode. Account-launched chats also get stable icon colors in the Agents sidebar and a session-specific `Subscription` or `API` badge in the pane header.
 
 ## Requirements
 
@@ -12,12 +12,13 @@ A Herdr layout add-on that puts Codex and Claude consumption meters in the botto
 
 ## Install
 
-Copy the four mods and layout into your Herdr app home:
+Copy the five mods and layout into your Herdr app home:
 
 ```sh
 cp -R mods/account-usage ~/.config/herdr-app/mods/
 cp -R mods/account-agents ~/.config/herdr-app/mods/
 cp -R mods/account-command-palette ~/.config/herdr-app/mods/
+cp -R mods/account-pane ~/.config/herdr-app/mods/
 cp -R mods/workspace-status-usage ~/.config/herdr-app/mods/
 cp layouts/main-usage.json ~/.config/herdr-app/layouts/
 ```
@@ -30,6 +31,7 @@ Then validate and switch layouts:
 herdr-app check ~/.config/herdr-app/mods/account-usage
 herdr-app check ~/.config/herdr-app/mods/account-agents
 herdr-app check ~/.config/herdr-app/mods/account-command-palette
+herdr-app check ~/.config/herdr-app/mods/account-pane
 herdr-app check ~/.config/herdr-app/mods/workspace-status-usage
 herdr-app do layout.switch --name main-usage
 ```
@@ -62,7 +64,7 @@ The included `main-usage` layout is a clone of Herdr's main layout with its stat
 }
 ```
 
-Use the same block in a personal layout if you do not want the included clone. Replace the layout's `agents` block with `account-agents` to show the per-account icon colors there too.
+Use the same block in a personal layout if you do not want the included clone. Replace the layout's `agents` block with `account-agents` to show per-account icon colors, and replace its pane-header mod with `account-pane` to show the billing route captured when each session launched.
 
 ## Privacy and security
 
@@ -82,6 +84,7 @@ npm test
 herdr-app check ./mods/account-usage
 herdr-app check ./mods/account-agents
 herdr-app check ./mods/account-command-palette
+herdr-app check ./mods/account-pane
 herdr-app check ./mods/workspace-status-usage
 ```
 

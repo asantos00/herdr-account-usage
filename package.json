@@ -4,7 +4,7 @@
   "private": true,
   "description": "Codex and Claude usage meters for the Herdr status bar.",
   "scripts": {
-    "test": "node --test mods/account-usage/*.test.mjs mods/account-agents/*.test.mjs mods/account-command-palette/*.test.mjs mods/workspace-status-usage/*.test.mjs"
+    "test": "node --test mods/account-usage/*.test.mjs mods/account-agents/*.test.mjs mods/account-command-palette/*.test.mjs mods/account-pane/*.test.mjs mods/workspace-status-usage/*.test.mjs"
   },
   "engines": {
     "node": ">=22"
