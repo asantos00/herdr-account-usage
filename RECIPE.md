@@ -6,7 +6,7 @@ A compact Codex and Claude consumption map in Herdr's bottom-right status bar, w
 
 ## What you see
 
-The status bar ends with one small combined control. `Cx` and `Cl` each have ten 3×4px usage segments. Filled segments are green below 70%, amber from 70%, and red from 90%. The Claude billing mode follows the meters: `Sub` in the done color, or `API` in muted text. When API billing is active while Claude subscription capacity is available, `API` turns red and gets a 5px red dot.
+The status bar ends with one small combined control. Colored Codex and Claude glyphs each have ten 3×4px usage segments. Filled segments are green below 70%, amber from 70%, and red from 90%. The Claude profile default follows the meters: `Sub` in the done color, or `API` in muted text. When API billing is active while Claude subscription capacity is available, `API` turns red and gets a 5px red dot.
 
 Clicking the control opens a centered 620×400 themed popup. Its header says “Accounts” and has the last check time, refresh, and close controls. Every discovered profile gets one compact card with its email and both the short-session and weekly meters on single lines, so four accounts fit without scrolling. Clicking a card expands its comparison and pace details. Claude cards with a safe billing configuration also have a compact `Sub` / `API` toggle.
 
@@ -20,15 +20,18 @@ The popup does not launch chats. The companion `account-command-palette` is a pe
 
 The `account-agents` companion is a personal clone of Herdr's Agents mod. It reads those terminal labels and wraps each account-launched agent icon in a stable colored tile. Codex profiles use green, blue, teal, then gold; Claude profiles use coral, purple, pink, then gold. Unlabelled agents retain the native icon treatment.
 
+The `account-pane` companion clones Herdr's pane header and adds a `Subscription` or `API` pill from the immutable route label written when that terminal launches. Changing a profile default later does not rewrite the badge on an existing session.
+
 Each Claude toggle changes only newly started sessions for that profile. It moves an existing `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` pair between active fields and underscore-prefixed parked fields. It refuses to write when the pair is incomplete or conflicting.
 
 ## Built from
 
-- `layouts/main-usage.json` is a personal clone of Herdr's `main` layout. Its 28px bottom status block uses `workspace-status-usage`.
+- `layouts/main-usage.json` is a personal clone of Herdr's `main` layout. Its 28px bottom status block uses `workspace-status-usage`, and its pane headers use `account-pane`.
 - `mods/workspace-status-usage/main.js` retains the shipped workspace status information and adds the usage control on the right. It uses `shared`, `setShared`, `exec`, `appHome`, `theme`, `spaces`, `agents`, `keys`, `window`, and `run` from `herdr`.
 - `mods/account-usage/main.js` renders the compact/expandable popup with GPUI `div`, `h_flex`, and `v_flex` elements. It uses Herdr's overlay, process, shared-state, and theme APIs.
 - `mods/account-command-palette/main.js` clones the shipped frame palette, loads safe profile metadata through `account-control.mjs list`, and launches the selected profile by stable ID.
 - `mods/account-agents/main.js` clones the shipped Agents view and colors program-icon tiles from path-free `herdr.account.*` terminal labels.
+- `mods/account-pane/main.js` clones the shipped pane header and renders the validated `herdr.billing.route` session label.
 - `account-colors.mjs` assigns provider-aware display colors and builds the safe labels written before an account CLI starts.
 - `account-profiles.mjs` discovers default and suffixed CLI homes or reads an exact local `accounts.json` registry. It gives each profile a path-free stable ID and builds isolated Claude or Pi launch commands.
 - `codex-pi-profile.mjs` creates one protected Pi agent directory per Codex identity, imports that subscription's OAuth credential, keeps its Pi sessions separate, and links the remaining Pi resources to the normal agent directory.
@@ -41,7 +44,7 @@ Each Claude toggle changes only newly started sessions for that profile. It move
 
 ## Watch out
 
-The mod reaches the network, runs local Node.js, reads CLI credentials, and can edit `~/.claude/settings.json` after an explicit billing-toggle click. It never prints or persists tokens or credential paths.
+The mod reaches the network, runs local Node.js, reads CLI credentials, and can edit `~/.claude/settings.json` after an explicit billing-toggle click. It never prints tokens or credential paths. Account-scoped Pi OAuth credentials are persisted only in protected `~/.pi/account-profiles/<profile-id>/auth.json` files.
 
 Codex usage comes from `https://chatgpt.com/backend-api/wham/usage`. Claude usage comes from `https://api.anthropic.com/api/oauth/usage`. These are provider endpoints used by the installed CLI sessions and may change.
 
@@ -57,9 +60,11 @@ The billing toggle expects both Claude API fields to be either active or parked.
 - `herdr-app check ~/.config/herdr-app/mods/account-usage` passes.
 - `herdr-app check ~/.config/herdr-app/mods/account-agents` passes.
 - `herdr-app check ~/.config/herdr-app/mods/account-command-palette` passes.
+- `herdr-app check ~/.config/herdr-app/mods/account-pane` passes.
 - `herdr-app check ~/.config/herdr-app/mods/workspace-status-usage` passes.
 - `herdr-app status` reports no new errors.
-- The `main-usage` layout shows `Cx`, `Cl`, profile counts when needed, and a single Claude profile's billing mode at bottom right.
+- The `main-usage` layout shows provider glyphs, profile counts when needed, and a single Claude profile's default billing mode at bottom right.
+- New Claude and Pi chats show their launch-time `Subscription` or `API` route in the pane header.
 - Clicking the map opens the Accounts popup with one card per configured or discovered profile.
 - Four account cards fit in the popup without scrolling while collapsed; clicking one reveals pace details.
 - `Cmd+Shift+P` preserves the original command palette and adds one dynamic new-chat entry per account.

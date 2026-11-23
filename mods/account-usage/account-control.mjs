@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { accountTerminalLabels, colorAccountProfiles } from "./account-colors.mjs";
+import { billingRoute } from "./billing-route.mjs";
 import { identityForAccount } from "./account-identity.mjs";
 import { discoverAccountProfiles, launchArgv, resolveProfile } from "./account-profiles.mjs";
 import { inspectAuthMode, serializeSettings, switchAuthMode } from "./claude-auth.mjs";
@@ -23,7 +24,8 @@ function switchClaudeAuth(profile, targetMode) {
 function labelTerminal(profile) {
   const terminal = process.env.HC_TERMINAL_ID;
   if (!terminal) return;
-  for (const [key, value] of Object.entries(accountTerminalLabels(profile))) {
+  const labels = { ...accountTerminalLabels(profile), "herdr.billing.route": billingRoute(profile) };
+  for (const [key, value] of Object.entries(labels)) {
     if (value) spawnSync("hc", ["label", terminal, `${key}=${value}`], { stdio: "ignore" });
   }
 }
