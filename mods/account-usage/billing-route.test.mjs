@@ -8,9 +8,11 @@ test("Codex Pi sessions use the subscription route", () => {
 
 test("Claude sessions capture the route active when they launch", () => {
   const subscription = { env: { _ANTHROPIC_BASE_URL: "https://proxy", _ANTHROPIC_AUTH_TOKEN: "token" } };
+  const plainSubscription = { env: {} };
   const api = { env: { ANTHROPIC_BASE_URL: "https://proxy", ANTHROPIC_AUTH_TOKEN: "token" } };
   const fs = (value) => ({ readFileSync: () => JSON.stringify(value) });
   assert.equal(billingRoute({ kind: "claude", configDir: "/claude" }, { fs: fs(subscription) }), "subscription");
+  assert.equal(billingRoute({ kind: "claude", configDir: "/claude" }, { fs: fs(plainSubscription) }), "subscription");
   assert.equal(billingRoute({ kind: "claude", configDir: "/claude" }, { fs: fs(api) }), "api");
 });
 

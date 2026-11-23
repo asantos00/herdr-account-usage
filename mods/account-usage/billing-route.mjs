@@ -7,8 +7,10 @@ export function billingRoute(profile, { fs = nodeFs } = {}) {
   if (profile?.kind !== "claude" || !profile.configDir) return null;
   try {
     const settings = JSON.parse(fs.readFileSync(join(profile.configDir, "settings.json"), "utf8"));
-    const mode = inspectAuthMode(settings).mode;
-    return mode === "subscription" || mode === "api" ? mode : null;
+    const inspection = inspectAuthMode(settings);
+    if (inspection.mode === "subscription" || inspection.mode === "api") return inspection.mode;
+    const noApiFields = inspection.fields.length > 0 && inspection.fields.every((field) => !field.parkedPresent && !field.activePresent);
+    return noApiFields ? "subscription" : null;
   } catch {
     return null;
   }
