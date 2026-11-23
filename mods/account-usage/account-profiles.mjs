@@ -5,7 +5,7 @@ import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROVIDERS = Object.freeze({
-  codex: Object.freeze({ prefix: ".codex", env: "CODEX_HOME", command: ["codex"] }),
+  codex: Object.freeze({ prefix: ".codex", env: "CODEX_HOME", command: ["pi"] }),
   claude: Object.freeze({ prefix: ".claude", env: "CLAUDE_CONFIG_DIR", command: ["claude"] }),
 });
 
@@ -91,8 +91,12 @@ export function resolveProfile(profiles, id) {
   return profile;
 }
 
-export function launchArgv(profile) {
+export function launchArgv(profile, { piAgentDir } = {}) {
   const provider = PROVIDERS[profile.kind];
   if (!provider) throw new Error(`Unsupported account kind: ${profile.kind}`);
+  if (profile.kind === "codex") {
+    if (!piAgentDir) throw new Error("A Pi account profile is required for Codex launches.");
+    return ["env", `${provider.env}=${profile.configDir}`, `PI_CODING_AGENT_DIR=${piAgentDir}`, ...provider.command];
+  }
   return ["env", `${provider.env}=${profile.configDir}`, ...provider.command];
 }
