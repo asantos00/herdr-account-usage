@@ -77,8 +77,11 @@ test("launches each chat with only its selected account home", () => {
   assert.deepEqual(launchArgv({ kind: "claude", configDir: "/profiles/claude-work" }), [
     "env", "CLAUDE_CONFIG_DIR=/profiles/claude-work", "claude",
   ]);
-  assert.deepEqual(launchArgv({ kind: "codex", configDir: "/profiles/codex-work" }), [
-    "env", "CODEX_HOME=/profiles/codex-work", "codex",
+  assert.deepEqual(launchArgv(
+    { kind: "codex", configDir: "/profiles/codex-work" },
+    { piAgentDir: "/profiles/pi-codex-work" },
+  ), [
+    "env", "CODEX_HOME=/profiles/codex-work", "PI_CODING_AGENT_DIR=/profiles/pi-codex-work", "pi",
   ]);
 });
 
@@ -108,17 +111,25 @@ test("the account control list exposes safe palette metadata without config path
   assert.equal(result.stdout.includes("secret-claude-home"), false);
 });
 
-test("the chat launcher passes the selected home to the provider process", () => {
+test("the chat launcher opens Pi with the selected Codex subscription", () => {
   const root = mkdtempSync(join(tmpdir(), "account-control-"));
   const bin = join(root, "bin");
   const configDir = join(root, "codex-work");
   const profilesPath = join(root, "accounts.json");
+  const piAgentDir = join(root, ".pi", "agent");
   mkdirSync(bin);
   mkdirSync(configDir);
+  mkdirSync(piAgentDir, { recursive: true });
+  writeFileSync(join(piAgentDir, "settings.json"), "{}\n");
+  writeFileSync(join(piAgentDir, "auth.json"), "{}\n");
+  writeFileSync(join(configDir, "auth.json"), JSON.stringify({ tokens: {
+    access_token: `x.${Buffer.from(JSON.stringify({ exp: 2_000_000_000 })).toString("base64url")}.y`,
+    refresh_token: "refresh", account_id: "work-account",
+  } }));
   writeFileSync(profilesPath, JSON.stringify({ accounts: [{ kind: "codex", label: "Work", configDir }] }));
-  const fakeCodex = join(bin, "codex");
-  writeFileSync(fakeCodex, "#!/bin/sh\nprintf '%s' \"$CODEX_HOME\"\n");
-  chmodSync(fakeCodex, 0o755);
+  const fakePi = join(bin, "pi");
+  writeFileSync(fakePi, "#!/bin/sh\nprintf '%s|%s' \"$CODEX_HOME\" \"$PI_CODING_AGENT_DIR\"\n");
+  chmodSync(fakePi, 0o755);
   const labelLog = join(root, "labels.log");
   const fakeHc = join(bin, "hc");
   writeFileSync(fakeHc, "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$HC_LABEL_LOG\"\n");
@@ -131,6 +142,7 @@ test("the chat launcher passes the selected home to the provider process", () =>
     env: {
       ...process.env,
       ACCOUNT_USAGE_PROFILES: profilesPath,
+      HOME: root,
       PATH: `${bin}${delimiter}${process.env.PATH || ""}`,
       HC_TERMINAL_ID: "t-account",
       HC_LABEL_LOG: labelLog,
@@ -138,7 +150,7 @@ test("the chat launcher passes the selected home to the provider process", () =>
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, configDir);
+  assert.equal(result.stdout, `${configDir}|${join(root, ".pi", "account-profiles", id)}`);
   const labels = readFileSync(labelLog, "utf8");
   assert.match(labels, new RegExp(`label t-account herdr\\.account\\.id=${id}`));
   assert.match(labels, /label t-account herdr\.account\.label=Work/);

@@ -12,11 +12,11 @@ Clicking the control opens a centered 620×400 themed popup. Its header says “
 
 ## How it behaves
 
-The status map refreshes usage when it starts and every five minutes. It keeps the last successful values when a provider is unavailable. For each provider it compares every profile's short session, weekly window, and Enterprise extra-credit cap, then shows the highest percentage; ties favor the shorter session. Labels such as `Cl2·5h`, `Cx·W`, and `Cl2·$` identify profile count and the winning limit. Clicking it runs `mod.open` for `account-usage`. `Cmd+Shift+U`, when merged from `keys.json`, opens the same popup.
+The status map refreshes usage when it starts and every five minutes. It keeps the last successful values when a provider is unavailable. For each provider it compares every profile's short session, weekly window, and Enterprise extra-credit cap, then shows the highest percentage; ties favor the shorter session. Colored Claude and Codex glyphs identify the winning account, while compact suffixes such as `2·5h`, `W`, and `2·$` identify profile count and limit. Clicking it runs `mod.open` for `account-usage`. `Cmd+Shift+U`, when merged from `keys.json`, opens the same popup.
 
 The popup hydrates from shared cached state, refreshes immediately on open, refreshes every five minutes while visible, and refreshes when the user clicks ↻ or presses `R`. Escape or × closes it. Missing accounts and provider failures stay local to their card.
 
-The popup does not launch chats. The companion `account-command-palette` is a personal clone of Herdr's command palette. It keeps the original commands and adds one searchable `New chat: …` entry per discovered profile. Selecting one starts Claude with its `CLAUDE_CONFIG_DIR` or Codex with its `CODEX_HOME`, and tags the Herdr terminal with safe account labels. `Cmd+Shift+P`, when merged from `keys.json`, opens it.
+The popup does not launch chats. The companion `account-command-palette` is a personal clone of Herdr's command palette. It keeps the original commands and adds one searchable `New chat: …` entry per discovered profile. Selecting a Claude profile starts Claude with its `CLAUDE_CONFIG_DIR`. Selecting a Codex profile starts Pi with its `CODEX_HOME` and account-scoped `PI_CODING_AGENT_DIR`, then tags the Herdr terminal with safe account labels. `Cmd+Shift+P`, when merged from `keys.json`, opens it.
 
 The `account-agents` companion is a personal clone of Herdr's Agents mod. It reads those terminal labels and wraps each account-launched agent icon in a stable colored tile. Codex profiles use green, blue, teal, then gold; Claude profiles use coral, purple, pink, then gold. Unlabelled agents retain the native icon treatment.
 
@@ -30,9 +30,10 @@ Each Claude toggle changes only newly started sessions for that profile. It move
 - `mods/account-command-palette/main.js` clones the shipped frame palette, loads safe profile metadata through `account-control.mjs list`, and launches the selected profile by stable ID.
 - `mods/account-agents/main.js` clones the shipped Agents view and colors program-icon tiles from path-free `herdr.account.*` terminal labels.
 - `account-colors.mjs` assigns provider-aware display colors and builds the safe labels written before an account CLI starts.
-- `account-profiles.mjs` discovers default and suffixed CLI homes or reads an exact local `accounts.json` registry. It gives each profile a path-free stable ID and builds isolated launch commands.
+- `account-profiles.mjs` discovers default and suffixed CLI homes or reads an exact local `accounts.json` registry. It gives each profile a path-free stable ID and builds isolated Claude or Pi launch commands.
+- `codex-pi-profile.mjs` creates one protected Pi agent directory per Codex identity, imports that subscription's OAuth credential, keeps its Pi sessions separate, and links the remaining Pi resources to the normal agent directory.
 - `account-identity.mjs` reads only display identity: Codex's email/name claims and Claude's cached OAuth account metadata. An explicit local `email` field is the fallback.
-- `account-control.mjs` resolves a profile ID at launch time, starts its CLI with the matching home variable, and applies profile-specific Claude billing changes without exposing credential paths to shared state.
+- `account-control.mjs` resolves a profile ID at launch time, starts Claude or Pi with the matching account environment, and applies profile-specific Claude billing changes without exposing credential paths to shared state.
 - `usage-helper.mjs` reads every discovered Codex and Claude CLI credential in memory, fetches provider usage, normalizes Enterprise extra-credit spend when plan windows are unavailable, writes sanitized per-profile cache and history files atomically with mode `0600`, and emits JSON for the mods.
 - `usage-pace.mjs` records at most one stable sample per ten minutes, retains nine days, compares against the same point in the prior cycle, detects resets, and projects whether the current burn rate will last until reset.
 - `claude-auth.mjs` inspects and safely rewrites the existing Claude settings field pair after an explicit toggle.

@@ -5,6 +5,7 @@ import { accountTerminalLabels, colorAccountProfiles } from "./account-colors.mj
 import { identityForAccount } from "./account-identity.mjs";
 import { discoverAccountProfiles, launchArgv, resolveProfile } from "./account-profiles.mjs";
 import { inspectAuthMode, serializeSettings, switchAuthMode } from "./claude-auth.mjs";
+import { prepareCodexPiProfile } from "./codex-pi-profile.mjs";
 
 function switchClaudeAuth(profile, targetMode) {
   if (profile.kind !== "claude") throw new Error("Billing mode is only available for Claude profiles.");
@@ -29,7 +30,8 @@ function labelTerminal(profile) {
 
 function launch(profile) {
   labelTerminal(profile);
-  const [command, ...args] = launchArgv(profile);
+  const piAgentDir = profile.kind === "codex" ? prepareCodexPiProfile(profile) : undefined;
+  const [command, ...args] = launchArgv(profile, { piAgentDir });
   const result = spawnSync(command, args, { env: process.env, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.signal) {

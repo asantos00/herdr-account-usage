@@ -47,7 +47,7 @@ CODEX_HOME="$HOME/.codex-work" codex login
 
 For custom paths or labels, copy [`accounts.example.json`](mods/account-usage/accounts.example.json) to `mods/account-usage/accounts.json` in your Herdr app home and edit it. When `accounts.json` exists, its list is authoritative. An optional `email` field can identify API-only profiles that do not expose account metadata.
 
-To choose an account per chat, open `Cmd+Shift+P` and select a dynamic `New chat: …` command. The launcher sets the profile's `CLAUDE_CONFIG_DIR` or `CODEX_HOME` and labels the running Herdr terminal with its account ID, name, provider, and display color. The account usage popup stays focused on identity, usage, and billing rather than duplicating chat launch controls.
+To choose an account per chat, open `Cmd+Shift+P` and select a dynamic `New chat: …` command. Claude profiles start Claude with the selected `CLAUDE_CONFIG_DIR`. Codex profiles start Pi with the selected `CODEX_HOME` and a matching account-scoped Pi agent directory, so each Pi uses the intended Codex subscription while sharing the normal Pi settings, skills, extensions, and MCP configuration. The launcher also labels the running Herdr terminal with its account ID, name, provider, and display color. The account usage popup stays focused on identity, usage, and billing rather than duplicating chat launch controls.
 
 ## Use it in another layout
 
@@ -71,7 +71,7 @@ This mod runs local Node.js helpers and calls:
 - `https://chatgpt.com/backend-api/wham/usage`
 - `https://api.anthropic.com/api/oauth/usage`
 
-It reads the credentials already used by the Codex and Claude CLIs. Tokens and credential paths remain in memory and are never printed or stored by the mod. The command palette and account-aware Agents sidebar receive only stable profile IDs, labels, provider kinds, display emails, and non-secret display colors. Local `accounts.json`, `cache.json`, and `history.json` files are ignored by Git; the cache and history contain only profile IDs, labels, account display identity such as email, sanitized usage windows, and timestamps.
+It reads the credentials already used by the Codex and Claude CLIs. Tokens and credential paths are never printed or exposed to UI mods. To let Pi use multiple Codex subscriptions, the launcher creates a protected `~/.pi/account-profiles/<profile-id>/auth.json` for each Codex identity and keeps its sessions separate; non-auth Pi resources are linked from the normal agent directory. The command palette and account-aware Agents sidebar receive only stable profile IDs, labels, provider kinds, display emails, and non-secret display colors. Local `accounts.json`, `cache.json`, and `history.json` files are ignored by Git; the cache and history contain only profile IDs, labels, account display identity such as email, sanitized usage windows, and timestamps.
 
 Each Claude billing toggle edits that profile's `settings.json` only after a click. It moves the existing `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` pair between active and underscore-prefixed parked fields. It refuses incomplete or conflicting configurations.
 
